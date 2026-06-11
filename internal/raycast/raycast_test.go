@@ -20,8 +20,12 @@ func frameSetup() (*Renderer, *render.PixelBuf, *dungeon.Dungeon, func(int, int)
 		return WallNone
 	}
 	sprites := []Sprite{}
-	for _, o := range d.Orcs {
-		sprites = append(sprites, Sprite{X: o.X, Y: o.Y, Kind: KOrc, Scale: 0.62})
+	for _, o := range d.Monsters {
+		k := KOrc
+		if o.Kind == dungeon.MSkeleton {
+			k = KSkeleton
+		}
+		sprites = append(sprites, Sprite{X: o.X, Y: o.Y, Kind: k, Scale: 0.62})
 	}
 	for _, c := range d.Columns {
 		sprites = append(sprites, Sprite{X: c.X, Y: c.Y, Kind: KColumn, Scale: 1.0})

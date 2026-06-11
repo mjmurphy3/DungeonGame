@@ -20,14 +20,34 @@ type Entrance struct {
 	Exit Point
 }
 
+// Healer is a building whose interior restores hit points on entry.
+type Healer struct {
+	Name       string
+	X, Y, W, H int   // building rectangle including walls
+	Door       Point // doorway tile in the south wall
+	Heal       int   // hit points restored per visit
+}
+
 // World is a generated overworld.
 type World struct {
 	W, H      int
 	Tiles     []Tile
 	Labels    map[int]rune // tile index -> letter inset in a wall/brick tile
 	Entrances []Entrance
+	Healers   []Healer
 	Spawn     Point
 	Seed      int64
+}
+
+// HealerAt returns the index of the healer whose interior contains (x, y),
+// or -1.
+func (w *World) HealerAt(x, y int) int {
+	for i, h := range w.Healers {
+		if x > h.X && x < h.X+h.W-1 && y > h.Y && y < h.Y+h.H-1 {
+			return i
+		}
+	}
+	return -1
 }
 
 // At returns the tile at (x, y); out-of-bounds reads as deep water.
@@ -54,15 +74,29 @@ func (w *World) EntranceAt(x, y int) int {
 	return -1
 }
 
-// Generate builds a world from a seed: noise terrain, lava fields, a labeled
-// town, and 3-5 dungeon entrances tucked into forests or mountains, all
-// verified reachable from the spawn point.
+// Generate builds a world from a seed: noise terrain, lava fields, scattered
+// healer buildings, and 3-5 dungeon entrances tucked into forests or
+// mountains. Every entrance and healer door is verified walkable from spawn
+// without crossing lava; the rare invalid world is regenerated from a
+// derived seed so the result is always playable.
 func Generate(seed int64) *World {
+	s := seed
+	for {
+		w := generate(s)
+		if len(w.Entrances) >= 3 && w.entrancesReachable() {
+			w.Seed = seed
+			return w
+		}
+		s = s*31 + 7
+	}
+}
+
+func generate(seed int64) *World {
 	rng := rand.New(rand.NewSource(seed))
 	w := &World{W: Size, H: Size, Tiles: make([]Tile, Size*Size), Labels: map[int]rune{}, Seed: seed}
 
 	w.terrain(seed)
-	w.buildTown(rng)
+	w.placeBuildings(rng)
 	reach := w.reachableFrom(w.Spawn)
 	w.placeEntrances(rng, reach)
 	w.placeWarnings(rng)
@@ -109,37 +143,92 @@ func (w *World) terrain(seed int64) {
 	}
 }
 
-// buildTown clears the grassiest window near the map center, raises a few
-// labeled buildings, and sets the player spawn on the town green.
-func (w *World) buildTown(rng *rand.Rand) {
-	const tw, th = 34, 16
-	bestX, bestY, bestScore := w.W/2, w.H/2, -1
-	for try := 0; try < 400; try++ {
-		x := w.W/4 + rng.Intn(w.W/2)
-		y := w.H/4 + rng.Intn(w.H/2)
-		score := 0
-		for j := 0; j < th; j++ {
-			for i := 0; i < tw; i++ {
-				if w.At(x+i, y+j) == TGrass {
-					score++
+// placeBuildings scatters the three healer buildings across the continent
+// rather than clustering them in one town: the stone DOCTOR (where the spawn
+// is), then the PUB and INN well away from it, each on its own grass
+// clearing and reachable on foot from the spawn.
+func (w *World) placeBuildings(rng *rand.Rand) {
+	specs := []struct {
+		label string
+		mat   Tile
+		bw    int
+		bh    int
+		heal  int
+	}{
+		{"DOCTOR", TWall, 12, 7, 40},
+		{"PUB", TBrick, 9, 5, 10},
+		{"INN", TBrick, 8, 5, 10},
+	}
+
+	var reach []bool // filled in after the doctor fixes the spawn
+	for bi, sp := range specs {
+		padW, padH := sp.bw+6, sp.bh+6
+		bestX, bestY, bestScore := -1, -1, -1
+		// Prefer well-separated sites; relax the spacing only if the seed
+		// leaves no choice.
+		for _, minDist := range []int{70, 45, 25, 0} {
+			for try := 0; try < 800; try++ {
+				x := 2 + rng.Intn(w.W-padW-4)
+				y := 2 + rng.Intn(w.H-padH-4)
+				cx, cy := x+padW/2, y+padH/2
+				spread := true
+				for _, h := range w.Healers {
+					hx, hy := h.X+h.W/2, h.Y+h.H/2
+					if (cx-hx)*(cx-hx)+(cy-hy)*(cy-hy) < minDist*minDist {
+						spread = false
+						break
+					}
+				}
+				if !spread {
+					continue
+				}
+				// Later buildings must open onto ground the player can walk
+				// to from the spawn.
+				if bi > 0 {
+					dx, dy := x+3+sp.bw/2, y+3+sp.bh-1
+					if !reach[dy*w.W+dx] {
+						continue
+					}
+				}
+				score := 0
+				for j := 0; j < padH; j++ {
+					for i := 0; i < padW; i++ {
+						if w.At(x+i, y+j) == TGrass {
+							score++
+						}
+					}
+				}
+				if score > bestScore {
+					bestX, bestY, bestScore = x, y, score
 				}
 			}
+			if bestScore >= padW*padH/2 {
+				break
+			}
 		}
-		if score > bestScore {
-			bestX, bestY, bestScore = x, y, score
+
+		// Clear the pad to grass and raise the building inside it.
+		for j := 0; j < padH; j++ {
+			for i := 0; i < padW; i++ {
+				w.set(bestX+i, bestY+j, TGrass)
+			}
+		}
+		hx, hy := bestX+3, bestY+3
+		w.building(hx, hy, sp.bw, sp.bh, sp.label, sp.mat)
+		w.Healers = append(w.Healers, Healer{
+			Name: sp.label,
+			X:    hx, Y: hy, W: sp.bw, H: sp.bh,
+			Door: Point{hx + sp.bw/2, hy + sp.bh - 1},
+			Heal: sp.heal,
+		})
+
+		if bi == 0 {
+			// Spawn on the doctor's doorstep; reachability for the rest of
+			// the world is measured from here.
+			w.Spawn = Point{hx + sp.bw/2, hy + sp.bh}
+			reach = w.reachableFrom(w.Spawn)
 		}
 	}
-	for j := -1; j <= th; j++ {
-		for i := -1; i <= tw; i++ {
-			w.set(bestX+i, bestY+j, TGrass)
-		}
-	}
-
-	w.building(bestX, bestY, 9, 5, "PUB", TBrick)
-	w.building(bestX+13, bestY, 10, 6, "KEEP", TWall)
-	w.building(bestX+26, bestY, 8, 5, "INN", TBrick)
-
-	w.Spawn = Point{bestX + tw/2, bestY + th - 2}
 }
 
 // building raises a hollow rectangle of wall tiles with a door gap on the
@@ -163,10 +252,14 @@ func (w *World) building(x, y, bw, bh int, label string, mat Tile) {
 	}
 }
 
-// reachableFrom floods the passable tiles from p and returns the visited set.
+// reachableFrom floods the tiles a player can sensibly walk to from p.
+// Lava is excluded even though it is technically passable: anything that can
+// only be reached across a lava moat counts as unreachable, so dungeon
+// entrances and healer doors are never gated behind burning ground.
 func (w *World) reachableFrom(p Point) []bool {
+	pass := func(t Tile) bool { return t.Passable() && t != TLava }
 	seen := make([]bool, w.W*w.H)
-	if !w.At(p.X, p.Y).Passable() {
+	if !pass(w.At(p.X, p.Y)) {
 		return seen
 	}
 	queue := []Point{p}
@@ -180,7 +273,7 @@ func (w *World) reachableFrom(p Point) []bool {
 				continue
 			}
 			i := ny*w.W + nx
-			if !seen[i] && w.Tiles[i].Passable() {
+			if !seen[i] && pass(w.Tiles[i]) {
 				seen[i] = true
 				queue = append(queue, Point{nx, ny})
 			}
@@ -215,33 +308,44 @@ func (w *World) placeEntrances(rng *rand.Rand, reach []bool) {
 		if tooClose {
 			continue
 		}
-		// Needs a reachable, non-lava tile beside it to serve as the exit pad.
-		var exit *Point
-		for _, d := range [4]Point{{0, 1}, {0, -1}, {-1, 0}, {1, 0}} {
-			nx, ny := x+d.X, y+d.Y
-			if nx < 0 || ny < 0 || nx >= w.W || ny >= w.H {
-				continue
-			}
-			if reach[ny*w.W+nx] && w.At(nx, ny) != TLava {
-				exit = &Point{nx, ny}
-				break
-			}
-		}
+		exit := w.exitPad(reach, x, y)
 		if exit == nil {
 			continue
 		}
 		w.set(x, y, TEntrance)
 		w.Entrances = append(w.Entrances, Entrance{Pos: Point{x, y}, Exit: *exit})
 	}
-	// Extremely defensive fallback: carve entrances near spawn if the noise
-	// produced too little forest/mountain (not expected at these thresholds).
-	for len(w.Entrances) < 3 {
-		x := w.Spawn.X + len(w.Entrances)*8 - 8
-		y := w.Spawn.Y + 6
+	// Relaxed second pass for stingy seeds: accept any forest/mountain tile
+	// with a safe approach, ignoring the spacing rules. If even this cannot
+	// find three, Generate regenerates the whole world.
+	for tries := 0; tries < 60000 && len(w.Entrances) < 3; tries++ {
+		x, y := rng.Intn(w.W), rng.Intn(w.H)
+		t := w.At(x, y)
+		if t != TForest && t != TMountain {
+			continue
+		}
+		exit := w.exitPad(reach, x, y)
+		if exit == nil {
+			continue
+		}
 		w.set(x, y, TEntrance)
-		w.set(x, y-1, TMountain)
-		w.Entrances = append(w.Entrances, Entrance{Pos: Point{x, y}, Exit: Point{x, y + 1}})
+		w.Entrances = append(w.Entrances, Entrance{Pos: Point{x, y}, Exit: *exit})
 	}
+}
+
+// exitPad returns a tile beside (x, y) that the player can walk to from
+// spawn without crossing lava, or nil if the spot is sealed off.
+func (w *World) exitPad(reach []bool, x, y int) *Point {
+	for _, d := range [4]Point{{0, 1}, {0, -1}, {-1, 0}, {1, 0}} {
+		nx, ny := x+d.X, y+d.Y
+		if nx < 0 || ny < 0 || nx >= w.W || ny >= w.H {
+			continue
+		}
+		if reach[ny*w.W+nx] {
+			return &Point{nx, ny}
+		}
+	}
+	return nil
 }
 
 // placeWarnings drops small wall-text signs near dungeon entrances and lava,
@@ -296,10 +400,17 @@ func (w *World) placeSign(rng *rand.Rand, text string, cx, cy, radius int) bool 
 	return false
 }
 
+// entrancesReachable checks every critical doorway (dungeon exit pads and
+// healer doors) is still walkable from spawn; signs roll back if not.
 func (w *World) entrancesReachable() bool {
 	reach := w.reachableFrom(w.Spawn)
 	for _, e := range w.Entrances {
 		if !reach[e.Exit.Y*w.W+e.Exit.X] {
+			return false
+		}
+	}
+	for _, h := range w.Healers {
+		if !reach[h.Door.Y*w.W+h.Door.X] {
 			return false
 		}
 	}

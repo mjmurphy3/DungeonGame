@@ -1,6 +1,9 @@
 package game
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 
 	"dungeongame/internal/world"
@@ -43,6 +46,37 @@ func (g *Game) worldKey(ch rune) {
 			g.enterDungeon(i)
 		}
 	}
+	if i := g.world.HealerAt(nx, ny); i >= 0 {
+		g.visitHealer(i)
+	}
+}
+
+// healerCooldown is how long a building rests between treatments.
+const healerCooldown = 300.0 // seconds (5 minutes)
+
+// visitHealer treats the player when they step inside a healer building.
+func (g *Game) visitHealer(i int) {
+	h := g.world.Healers[i]
+	if g.healerCD[i] > 0 {
+		g.say(fmt.Sprintf("The %s can do no more for you yet (%d:%02d).",
+			strings.ToLower(h.Name), int(g.healerCD[i])/60, int(g.healerCD[i])%60))
+		return
+	}
+	heal := min(h.Heal, maxHP-g.hp)
+	if heal <= 0 {
+		g.say("You are already in perfect health.")
+		return
+	}
+	g.hp += heal
+	g.healerCD[i] = healerCooldown
+	switch h.Name {
+	case "DOCTOR":
+		g.say(fmt.Sprintf("The doctor patches you up (+%d HP).", heal))
+	case "PUB":
+		g.say(fmt.Sprintf("A hearty meal and a pint (+%d HP).", heal))
+	default:
+		g.say(fmt.Sprintf("A short rest at the inn (+%d HP).", heal))
+	}
 }
 
 // enterDungeon drops the player at the level's entry ladder. All dungeons are
@@ -53,6 +87,7 @@ func (g *Game) enterDungeon(i int) {
 	g.mode = ModeDungeon
 	g.fx, g.fy, g.ang = d.StartX, d.StartY, d.StartA
 	g.missiles = nil
+	g.shots = nil
 	g.say("You climb down into the dungeon...")
 }
 
@@ -63,6 +98,7 @@ func (g *Game) leaveDungeon() {
 	g.mode = ModeWorld
 	g.px, g.py = e.Exit.X, e.Exit.Y
 	g.missiles = nil
+	g.shots = nil
 	g.say("You climb back out into the daylight.")
 }
 

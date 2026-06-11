@@ -21,6 +21,9 @@ const (
 	KLadder
 	KTorch
 	KMissile
+	KSkeleton
+	KSkeletonDead
+	KArrow
 )
 
 // Sprite is a world-positioned billboard.
@@ -110,6 +113,10 @@ var (
 	flameIn   = tcell.NewRGBColor(255, 230, 90)
 	boltCore  = tcell.NewRGBColor(245, 250, 255)
 	boltGlow  = tcell.NewRGBColor(110, 190, 255)
+	boneCol   = tcell.NewRGBColor(228, 224, 205)
+	boneDark  = tcell.NewRGBColor(150, 145, 125)
+	boneEye   = tcell.NewRGBColor(20, 14, 12)
+	arrowCol  = tcell.NewRGBColor(235, 230, 210)
 )
 
 // texel returns the sprite surface color at (u, v) in [0,1]^2, or ok=false
@@ -144,6 +151,86 @@ func texel(kind SpriteKind, frame int, u, v float64) (tcell.Color, bool) {
 			return boltGlow, true
 		}
 		return 0, false
+	case KSkeleton:
+		return skeletonTexel(frame, u, v)
+	case KSkeletonDead:
+		// A scattered pile of bones with the skull resting on top.
+		if inEllipse(u, v, 0.5, 0.90, 0.36, 0.09) {
+			if math.Mod(u*9, 1) < 0.3 {
+				return boneDark, true
+			}
+			return boneCol, true
+		}
+		if inEllipse(u, v, 0.38, 0.78, 0.10, 0.08) {
+			if inEllipse(u, v, 0.35, 0.77, 0.03, 0.03) {
+				return boneEye, true
+			}
+			return boneCol, true
+		}
+		return 0, false
+	case KArrow:
+		// A short bone dart, flying point-first.
+		if math.Abs(v-0.5) < 0.16 && u > 0.15 && u < 0.85 {
+			if u > 0.7 {
+				return boneDark, true // tip
+			}
+			return arrowCol, true
+		}
+		return 0, false
+	}
+	return 0, false
+}
+
+// skeletonTexel draws the archer: skull, ribcage, and spindly limbs.
+func skeletonTexel(frame int, u, v float64) (tcell.Color, bool) {
+	swing := 0.0
+	if frame%2 == 1 {
+		swing = 0.04
+	}
+	// Skull with hollow eyes and a jaw line.
+	if inEllipse(u, v, 0.5, 0.15, 0.14, 0.12) {
+		if inEllipse(u, v, 0.44, 0.13, 0.035, 0.035) || inEllipse(u, v, 0.56, 0.13, 0.035, 0.035) {
+			return boneEye, true
+		}
+		if v > 0.21 && math.Mod(u*16, 1) < 0.35 {
+			return boneDark, true // teeth
+		}
+		return boneCol, true
+	}
+	// Spine.
+	if math.Abs(u-0.5) < 0.030 && v >= 0.27 && v < 0.64 {
+		return boneCol, true
+	}
+	// Ribcage: stacked horizontal bones curving with the torso.
+	if v >= 0.30 && v < 0.52 && math.Abs(u-0.5) < 0.17 {
+		if math.Mod(v*11, 1) < 0.45 {
+			return boneCol, true
+		}
+		return 0, false
+	}
+	// Pelvis.
+	if inEllipse(u, v, 0.5, 0.66, 0.11, 0.05) {
+		return boneCol, true
+	}
+	// Arms: one holds the bow forward (kept simple as a raised arm).
+	if math.Abs(u-(0.27+swing)) < 0.035 && v > 0.30 && v < 0.58 {
+		return boneDark, true
+	}
+	if math.Abs(u-(0.73-swing)) < 0.035 && v > 0.30 && v < 0.58 {
+		return boneDark, true
+	}
+	// Legs, alternating with the walk frame.
+	if v >= 0.70 {
+		lEnd, rEnd := 1.0, 0.93
+		if frame%2 == 1 {
+			lEnd, rEnd = 0.93, 1.0
+		}
+		if math.Abs(u-0.43) < 0.040 && v < lEnd {
+			return boneCol, true
+		}
+		if math.Abs(u-0.57) < 0.040 && v < rEnd {
+			return boneCol, true
+		}
 	}
 	return 0, false
 }

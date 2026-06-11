@@ -34,15 +34,32 @@ type Room struct{ X, Y, W, H int }
 func (r Room) centerX() float64 { return float64(r.X) + float64(r.W)/2 }
 func (r Room) centerY() float64 { return float64(r.Y) + float64(r.H)/2 }
 
-// Orc is a melee monster (20 HP); it must be adjacent to strike, and the
-// damage roll lives in the game package.
-type Orc struct {
+// MonsterKind selects a dungeon monster's behavior and looks.
+type MonsterKind uint8
+
+const (
+	MOrc      MonsterKind = iota // melee bruiser: must close to adjacent
+	MSkeleton                    // archer: keeps its distance, shoots bone arrows
+)
+
+// Monster is a dungeon inhabitant (20 HP). Damage rolls live in the game
+// package.
+type Monster struct {
+	Kind     MonsterKind
 	X, Y     float64
 	HP       int
-	AttackCD float64 // seconds until it may strike again
+	AttackCD float64 // seconds until it may strike/shoot again
 	DeadFor  float64 // seconds since death, drives the death frame
 	WanderT  float64 // seconds until it picks a new idle direction
 	DX, DY   float64 // current wander direction
+}
+
+// Name returns the monster's display name for combat messages.
+func (m *Monster) Name() string {
+	if m.Kind == MSkeleton {
+		return "skeleton"
+	}
+	return "orc"
 }
 
 // Chest holds treasure and opens when the player walks up to it. Its gold is
@@ -61,18 +78,18 @@ type Torch struct{ X, Y float64 }
 
 // Dungeon is one generated level plus its inhabitants.
 type Dungeon struct {
-	W, H    int
-	Cells   []Cell
-	Rooms   []Room
-	Entry   [2]int // cell of the entry ladder
-	Exit    [2]int // cell of the exit ladder
-	StartX  float64
-	StartY  float64
-	StartA  float64 // initial facing angle
-	Orcs    []Orc
-	Chests  []Chest
-	Columns []Column
-	Torches []Torch
+	W, H     int
+	Cells    []Cell
+	Rooms    []Room
+	Entry    [2]int // cell of the entry ladder
+	Exit     [2]int // cell of the exit ladder
+	StartX   float64
+	StartY   float64
+	StartA   float64 // initial facing angle
+	Monsters []Monster
+	Chests   []Chest
+	Columns  []Column
+	Torches  []Torch
 }
 
 // At returns the cell at (x, y); out of bounds reads as wall.
@@ -382,19 +399,26 @@ func (d *Dungeon) placeTorches(rng *rand.Rand) {
 	}
 }
 
-// populate scatters orcs (skipping the entry room) and roughly one chest per
-// two rooms.
+// populate scatters orcs and skeleton archers (skipping the entry room) and
+// roughly one chest per two rooms.
 func (d *Dungeon) populate(rng *rand.Rand) {
+	spawn := func(r Room, kind MonsterKind) {
+		x := float64(r.X) + 0.5 + float64(rng.Intn(r.W))
+		y := float64(r.Y) + 0.5 + float64(rng.Intn(r.H))
+		if d.Walkable(x, y) {
+			d.Monsters = append(d.Monsters, Monster{Kind: kind, X: x, Y: y, HP: 20})
+		}
+	}
 	for i, r := range d.Rooms {
 		if i == 0 {
 			continue
 		}
 		for n := 1 + rng.Intn(3); n > 0; n-- {
-			x := float64(r.X) + 0.5 + float64(rng.Intn(r.W))
-			y := float64(r.Y) + 0.5 + float64(rng.Intn(r.H))
-			if d.Walkable(x, y) {
-				d.Orcs = append(d.Orcs, Orc{X: x, Y: y, HP: 20})
-			}
+			spawn(r, MOrc)
+		}
+		// At least one skeleton per dungeon (room 1), a coin flip elsewhere.
+		if i == 1 || rng.Intn(2) == 0 {
+			spawn(r, MSkeleton)
 		}
 	}
 	for i := 1; i < len(d.Rooms); i += 2 {

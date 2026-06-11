@@ -41,6 +41,63 @@ func TestGenerateWorlds(t *testing.T) {
 	}
 }
 
+// TestEntrancesNeverLavaGated verifies every dungeon entrance can be walked
+// to from spawn without stepping on a single lava tile, and is never sealed
+// inside a mountain range (the exit pad must be a non-lava walkable
+// neighbor on the spawn's lava-free flood fill).
+func TestEntrancesNeverLavaGated(t *testing.T) {
+	for seed := int64(1); seed <= 20; seed++ {
+		w := Generate(seed)
+		reach := w.reachableFrom(w.Spawn) // excludes lava by definition
+		for i, e := range w.Entrances {
+			if !reach[e.Exit.Y*w.W+e.Exit.X] {
+				t.Errorf("seed %d: entrance %d at %v requires crossing lava or is sealed", seed, i, e.Pos)
+			}
+			if w.At(e.Exit.X, e.Exit.Y) == TLava {
+				t.Errorf("seed %d: entrance %d exit pad is lava", seed, i)
+			}
+			adj := false
+			for _, d := range [4]Point{{0, 1}, {0, -1}, {-1, 0}, {1, 0}} {
+				if e.Exit.X == e.Pos.X+d.X && e.Exit.Y == e.Pos.Y+d.Y {
+					adj = true
+				}
+			}
+			if !adj {
+				t.Errorf("seed %d: entrance %d exit pad %v not adjacent to %v", seed, i, e.Exit, e.Pos)
+			}
+		}
+	}
+}
+
+// TestHealersScattered verifies the three healer buildings exist, are spread
+// out across the map, and all open onto ground reachable from spawn.
+func TestHealersScattered(t *testing.T) {
+	for seed := int64(1); seed <= 8; seed++ {
+		w := Generate(seed)
+		if len(w.Healers) != 3 {
+			t.Fatalf("seed %d: got %d healers, want 3", seed, len(w.Healers))
+		}
+		want := map[string]int{"DOCTOR": 40, "PUB": 10, "INN": 10}
+		reach := w.reachableFrom(w.Spawn)
+		for i, h := range w.Healers {
+			if want[h.Name] != h.Heal {
+				t.Errorf("seed %d: %s heals %d, want %d", seed, h.Name, h.Heal, want[h.Name])
+			}
+			if !reach[h.Door.Y*w.W+h.Door.X] {
+				t.Errorf("seed %d: %s door unreachable from spawn", seed, h.Name)
+			}
+			for j := 0; j < i; j++ {
+				o := w.Healers[j]
+				dx := (h.X + h.W/2) - (o.X + o.W/2)
+				dy := (h.Y + h.H/2) - (o.Y + o.H/2)
+				if dx*dx+dy*dy < 25*25 {
+					t.Errorf("seed %d: %s and %s are clustered (%d apart^2)", seed, h.Name, o.Name, dx*dx+dy*dy)
+				}
+			}
+		}
+	}
+}
+
 // TestContinentFitsInsideBorders verifies the radial falloff: the outer rim
 // of the map must be open water on every side, so the coastline is always
 // reached before the edge of the world.

@@ -116,12 +116,15 @@ func (g *Game) drawTitle(w, h int) {
 	// Help box.
 	help := []string{
 		"WASD ......... move (overworld) / walk and turn (dungeon)",
+		"Q / E ........ strafe left / right (dungeon)",
 		"SPACE ........ fire a magic missile (1-10 damage)",
-		"Doors open when you walk into them; chests open on touch",
-		"Ladders climb back to the surface, just outside the door",
+		"Orcs claw up close; skeleton arrows hit hard from afar -",
+		"if you can't see your attacker, LOOK AROUND!",
+		"Chests give gold and +5 HP; ladders climb to the surface",
+		"The DOCTOR heals +40, the PUB and INN +10 (5 min rest)",
 		"Lava burns 10 HP a step - you heal 1 HP every 20 seconds",
 		"",
-		"WIN: claim 70% of all dungeon gold, or slay every orc",
+		"WIN: claim 70% of all dungeon gold, or slay every foe",
 	}
 	boxW := 0
 	for _, s := range help {
@@ -143,8 +146,8 @@ func (g *Game) drawTitle(w, h int) {
 	prompt := ">> Press ENTER to begin - ESC to quit <<"
 	g.scr.Text((w-len(prompt))/2, byy+boxH+2, prompt, render.Shade(titleGold, pulse), tcell.ColorBlack)
 
-	world := fmt.Sprintf("This world hides %d dungeons, %d gold pieces and %d orcs.",
-		len(g.dungeons), g.totalGold, g.totalOrcs)
+	world := fmt.Sprintf("This world hides %d dungeons, %d gold pieces and %d monsters.",
+		len(g.dungeons), g.totalGold, g.totalFoes)
 	g.scr.Text((w-len(world))/2, byy+boxH+4, world, starDim, tcell.ColorBlack)
 }
 
@@ -245,8 +248,8 @@ func (g *Game) drawVictory(w, h int) {
 	}
 	bottom := g.drawBanner("VICTORY", w, h/12, rowCol)
 
-	tally := fmt.Sprintf("You claimed %d of %d gold pieces and felled %d of %d orcs.",
-		g.gold, g.totalGold, g.orcsKilled, g.totalOrcs)
+	tally := fmt.Sprintf("You claimed %d of %d gold pieces and felled %d of %d foes.",
+		g.gold, g.totalGold, g.foesKilled, g.totalFoes)
 	g.scr.Text((w-len(tally))/2, bottom+2, tally, sunCore, skyTop)
 
 	pulse := 0.55 + 0.45*math.Sin(float64(g.tick)/7)
@@ -321,7 +324,7 @@ func (g *Game) drawDeath(w, h int) {
 		g.scr.Text((w-len(s))/2, y, s, fg, tcell.ColorBlack)
 	}
 	center(bottom+spacing, g.msg, hudText)
-	center(bottom+spacing*2, fmt.Sprintf("You perished with %d gold, %d orcs avenged you not.", g.gold, g.totalOrcs-g.orcsKilled), goldColor)
+	center(bottom+spacing*2, fmt.Sprintf("You perished with %d gold, %d foes avenged you not.", g.gold, g.totalFoes-g.foesKilled), goldColor)
 	pulse := 0.55 + 0.45*math.Sin(float64(g.tick)/7)
 	center(bottom+spacing*3, ">> Press R to rise again in a new world - ESC to surrender <<", render.Shade(bloodHi, pulse))
 }

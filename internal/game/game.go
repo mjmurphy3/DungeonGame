@@ -59,13 +59,17 @@ type Game struct {
 	hp, gold   int
 	regenTicks int
 
-	// Victory bookkeeping: win at 70% of all chest gold, or every orc slain.
+	// Victory bookkeeping: win at 70% of all chest gold, or every foe slain.
 	totalGold  int
 	goldGoal   int
-	totalOrcs  int
-	orcsKilled int
+	totalFoes  int
+	foesKilled int
+
+	warnT    float64   // "look around!" indicator time remaining
+	healerCD []float64 // per-building cooldown, seconds
 
 	missiles []Missile
+	shots    []Shot // enemy projectiles in flight
 	rc       raycast.Renderer
 	pb       *render.PixelBuf
 
@@ -86,14 +90,14 @@ func (g *Game) reset(seed int64) {
 
 	// Generate every dungeon up front so the victory goals are known.
 	g.dungeons = make([]*dungeon.Dungeon, len(g.world.Entrances))
-	g.totalGold, g.totalOrcs, g.orcsKilled = 0, 0, 0
+	g.totalGold, g.totalFoes, g.foesKilled = 0, 0, 0
 	for i := range g.dungeons {
 		d := dungeon.Generate(seed*131 + int64(i)*7919)
 		g.dungeons[i] = d
 		for _, c := range d.Chests {
 			g.totalGold += c.Gold
 		}
-		g.totalOrcs += len(d.Orcs)
+		g.totalFoes += len(d.Monsters)
 	}
 	g.goldGoal = (g.totalGold*7 + 9) / 10 // ceil(70%)
 
@@ -102,6 +106,9 @@ func (g *Game) reset(seed int64) {
 	g.hp, g.gold = maxHP, 0
 	g.regenTicks = 0
 	g.missiles = nil
+	g.shots = nil
+	g.warnT = 0
+	g.healerCD = make([]float64, len(g.world.Healers))
 	g.say("Welcome, wanderer. Dungeons hide in the forests and mountains.")
 }
 
@@ -111,8 +118,8 @@ func (g *Game) checkVictory() {
 		return
 	}
 	goldWin := g.totalGold > 0 && g.gold >= g.goldGoal
-	orcWin := g.totalOrcs > 0 && g.orcsKilled >= g.totalOrcs
-	if goldWin || orcWin {
+	foeWin := g.totalFoes > 0 && g.foesKilled >= g.totalFoes
+	if goldWin || foeWin {
 		g.mode = ModeVictory
 	}
 }
@@ -188,11 +195,27 @@ func (g *Game) handleKey(e *tcell.EventKey) bool {
 // update advances simulation by one frame.
 func (g *Game) update() {
 	g.tick++
+	// The startup resize escape is applied asynchronously by the terminal;
+	// re-sync shortly after launch so tcell re-reads the settled window size
+	// and the title screen centers without a manual resize.
+	if g.scr != nil && (g.tick == 10 || g.tick == 45) {
+		g.scr.T.Sync()
+	}
 	if g.msgT > 0 {
 		g.msgT -= dt
 	}
+	if g.warnT > 0 {
+		g.warnT -= dt
+	}
 	if g.mode == ModeTitle || g.mode == ModeDead || g.mode == ModeVictory {
 		return // screens only animate; the world holds its breath
+	}
+
+	// Healer cooldowns run on play time, in any mode.
+	for i := range g.healerCD {
+		if g.healerCD[i] > 0 {
+			g.healerCD[i] -= dt
+		}
 	}
 
 	// Passive healing: +1 HP per minute of play, in every mode.
@@ -242,6 +265,7 @@ func (g *Game) draw() {
 	if g.mode == ModeWorld || g.mode == ModeDungeon {
 		g.drawHUD(w, h)
 		g.drawStatsBox()
+		g.drawWarning(w)
 	}
 	g.scr.Show()
 }

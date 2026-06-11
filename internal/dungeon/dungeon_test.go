@@ -25,16 +25,25 @@ func TestGenerateDungeons(t *testing.T) {
 			t.Errorf("seed %d: player start (%v,%v) not walkable", seed, d.StartX, d.StartY)
 		}
 
-		for i, o := range d.Orcs {
+		var orcs, skeletons int
+		for i, o := range d.Monsters {
 			if o.HP != 20 {
-				t.Errorf("seed %d: orc %d spawned with %d HP, want 20", seed, i, o.HP)
+				t.Errorf("seed %d: monster %d spawned with %d HP, want 20", seed, i, o.HP)
 			}
 			if !d.At(int(o.X), int(o.Y)).Passable() {
-				t.Errorf("seed %d: orc %d spawned inside a wall", seed, i)
+				t.Errorf("seed %d: monster %d spawned inside a wall", seed, i)
+			}
+			if o.Kind == MSkeleton {
+				skeletons++
+			} else {
+				orcs++
 			}
 		}
-		if len(d.Orcs) == 0 {
+		if orcs == 0 {
 			t.Errorf("seed %d: dungeon has no orcs", seed)
+		}
+		if skeletons == 0 {
+			t.Errorf("seed %d: dungeon has no skeleton archers", seed)
 		}
 		if len(d.Torches) == 0 {
 			t.Errorf("seed %d: dungeon has no torches", seed)

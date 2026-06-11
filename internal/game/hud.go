@@ -25,7 +25,7 @@ func (g *Game) drawHUD(w, h int) {
 
 	hint := "WASD move  SPACE fire  ESC quit"
 	if g.mode == ModeDungeon {
-		hint = "W/S walk  A/D turn  SPACE fire  ESC quit"
+		hint = "W/S walk  Q/E strafe  A/D turn  SPACE fire  ESC quit"
 	}
 	g.scr.Text(1, y, hint, hudText, hudBG)
 
@@ -71,7 +71,7 @@ func (g *Game) drawStatsBox() {
 	const barLen = 10
 	hpLine := fmt.Sprintf("HP   %3d/%d ", g.hp, maxHP)
 	goldLine := fmt.Sprintf("Gold %d/%d (goal %d)", g.gold, g.totalGold, g.goldGoal)
-	orcLine := fmt.Sprintf("Orcs slain %d/%d", g.orcsKilled, g.totalOrcs)
+	orcLine := fmt.Sprintf("Foes slain %d/%d", g.foesKilled, g.totalFoes)
 
 	inner := len(hpLine) + barLen
 	for _, s := range []string{goldLine, orcLine} {
@@ -102,4 +102,19 @@ func (g *Game) drawStatsBox() {
 
 	g.scr.Text(x+2, y+2, goldLine, goldColor, hudBG)
 	g.scr.Text(x+2, y+3, orcLine, hudText, hudBG)
+}
+
+// drawWarning flashes "look around!" in the top-right corner while the
+// player is being attacked from outside their field of view.
+func (g *Game) drawWarning(w int) {
+	if g.warnT <= 0 {
+		return
+	}
+	msg := "⚠ ⚠  LOOK AROUND!  ⚠ ⚠"
+	fg := hpBad
+	if (g.tick/3)%2 == 0 {
+		fg = hpWarn
+	}
+	x := w - len([]rune(msg)) - 2
+	g.scr.Text(x, 1, msg, fg, tcell.ColorBlack)
 }

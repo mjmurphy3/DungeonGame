@@ -63,10 +63,10 @@ func TestMissileDamagesOrc(t *testing.T) {
 	g.curDungeon = 0
 	g.mode = ModeDungeon
 
-	if len(d.Orcs) == 0 {
-		t.Fatal("test dungeon has no orcs")
+	if len(d.Monsters) == 0 {
+		t.Fatal("test dungeon has no monsters")
 	}
-	o := &d.Orcs[0]
+	o := &d.Monsters[0]
 	// Park a slow missile right on top of the orc and step the simulation.
 	g.missiles = []Missile{{X: o.X, Y: o.Y, DX: 0.001, DY: 0}}
 	g.updateMissiles(d)
@@ -82,8 +82,8 @@ func TestMissileDamagesOrc(t *testing.T) {
 
 func TestVictoryGoalsComputed(t *testing.T) {
 	g := newHeadless(5)
-	if g.totalGold <= 0 || g.totalOrcs <= 0 {
-		t.Fatalf("totals not computed: gold %d orcs %d", g.totalGold, g.totalOrcs)
+	if g.totalGold <= 0 || g.totalFoes <= 0 {
+		t.Fatalf("totals not computed: gold %d foes %d", g.totalGold, g.totalFoes)
 	}
 	want := (g.totalGold*7 + 9) / 10
 	if g.goldGoal != want {
@@ -115,27 +115,43 @@ func TestVictoryByGold(t *testing.T) {
 
 func TestVictoryByOrcs(t *testing.T) {
 	g := newHeadless(5)
-	g.orcsKilled = g.totalOrcs
+	g.foesKilled = g.totalFoes
 	g.checkVictory()
 	if g.mode != ModeVictory {
-		t.Fatal("victory not triggered when all orcs are slain")
+		t.Fatal("victory not triggered when all foes are slain")
 	}
 }
 
-func TestOrcMeleeDamageBounds(t *testing.T) {
+// soloOrc returns a dungeon-mode game where only one orc is alive, with the
+// player standing right beside it.
+func soloOrc(t *testing.T) (*Game, *dungeon.Monster) {
+	t.Helper()
 	g := newHeadless(3)
 	d := dungeon.Generate(7)
 	g.dungeons = []*dungeon.Dungeon{d}
 	g.curDungeon = 0
 	g.mode = ModeDungeon
 
-	o := &d.Orcs[0]
-	for i := 1; i < len(d.Orcs); i++ {
-		d.Orcs[i].HP = 0 // only the test orc may swing this frame
+	var o *dungeon.Monster
+	for i := range d.Monsters {
+		if o == nil && d.Monsters[i].Kind == dungeon.MOrc {
+			o = &d.Monsters[i]
+		} else {
+			d.Monsters[i].HP = 0 // only the test orc may act
+		}
+	}
+	if o == nil {
+		t.Fatal("test dungeon has no orcs")
 	}
 	o.AttackCD = 0
 	g.fx, g.fy = o.X+0.5, o.Y // inside melee reach
-	g.updateOrcs(d)
+	return g, o
+}
+
+func TestOrcMeleeDamageBounds(t *testing.T) {
+	g, o := soloOrc(t)
+	g.ang = 0
+	g.updateMonsters(g.dungeons[0])
 
 	dealt := maxHP - g.hp
 	if dealt < 1 || dealt > orcMeleeMax {
@@ -143,5 +159,94 @@ func TestOrcMeleeDamageBounds(t *testing.T) {
 	}
 	if o.AttackCD <= 0 {
 		t.Fatal("orc attack cooldown not set after striking")
+	}
+}
+
+func TestRearAttackWarns(t *testing.T) {
+	// The orc stands at -x from the player. Facing +x means it's behind.
+	g, o := soloOrc(t)
+	g.ang = 0
+	g.updateMonsters(g.dungeons[0])
+	if g.warnT <= 0 {
+		t.Fatal("no warning when struck from behind")
+	}
+
+	// Facing the orc (-x direction): no warning.
+	g.warnT = 0
+	o.AttackCD = 0
+	g.ang = 3.14159
+	g.updateMonsters(g.dungeons[0])
+	if g.warnT > 0 {
+		t.Fatal("warning raised for an attacker in plain view")
+	}
+}
+
+func TestSkeletonArrowStings(t *testing.T) {
+	g := newHeadless(4)
+	d := dungeon.Generate(7)
+	g.dungeons = []*dungeon.Dungeon{d}
+	g.curDungeon = 0
+	g.mode = ModeDungeon
+	g.fx, g.fy = d.StartX, d.StartY
+
+	g.shots = []Shot{{X: g.fx, Y: g.fy, DX: 0.001, DY: 0}}
+	g.updateShots(d)
+
+	if got := maxHP - g.hp; got < 1 || got > skelShotMax {
+		t.Fatalf("arrow dealt %d damage, want 1-%d", got, skelShotMax)
+	}
+	if len(g.shots) != 0 {
+		t.Fatal("arrow should be consumed on hit")
+	}
+}
+
+func TestChestHealsFive(t *testing.T) {
+	g := newHeadless(5)
+	d := dungeon.Generate(99)
+	g.dungeons = []*dungeon.Dungeon{d}
+	g.curDungeon = 0
+	g.mode = ModeDungeon
+	if len(d.Chests) == 0 {
+		t.Fatal("test dungeon has no chests")
+	}
+
+	c := &d.Chests[0]
+	g.hp = 50
+	g.fx, g.fy = c.X, c.Y
+	g.updateChests(d)
+
+	if !c.Opened {
+		t.Fatal("chest did not open")
+	}
+	if g.hp != 50+chestHeal {
+		t.Fatalf("hp = %d after chest, want %d", g.hp, 50+chestHeal)
+	}
+	if g.gold != c.Gold {
+		t.Fatalf("gold = %d, want %d", g.gold, c.Gold)
+	}
+}
+
+func TestDoctorHealsWithCooldown(t *testing.T) {
+	g := newHeadless(6)
+	h := g.world.Healers[0]
+	if h.Name != "DOCTOR" || h.Heal != 40 {
+		t.Fatalf("healer 0 = %s/+%d, want DOCTOR/+40", h.Name, h.Heal)
+	}
+
+	g.hp = 40
+	g.px, g.py = h.Door.X, h.Door.Y
+	g.worldKey('w') // step inside
+	if g.hp != 80 {
+		t.Fatalf("hp = %d after doctor, want 80", g.hp)
+	}
+	if g.healerCD[0] <= 0 {
+		t.Fatal("doctor cooldown not started")
+	}
+
+	// Walking back in during the cooldown does nothing.
+	g.worldKey('s')
+	g.worldKey('w')
+	if g.hp != 80 {
+		t.Fatalf("hp = %d on cooldown revisit, want 80", g.hp)
 	}
 }
