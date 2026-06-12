@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/gdamore/tcell/v2"
+
 	"dungeongame/internal/dungeon"
 	"dungeongame/internal/raycast"
 	"dungeongame/internal/render"
@@ -357,5 +359,13 @@ func (g *Game) drawDungeon(w, h int) {
 	}
 
 	g.rc.Render(g.pb, grid, g.fx, g.fy, g.ang, sprites, g.tick)
+
+	// Crosshair at the view center: this is the exact line a missile flies.
+	cx, cy := g.pb.W/2, g.pb.H/2
+	cross := tcell.NewRGBColor(235, 240, 255)
+	for _, p := range [][2]int{{0, 0}, {-2, 0}, {2, 0}, {0, -2}, {0, 2}} {
+		g.pb.Set(cx+p[0], cy+p[1], cross)
+	}
+
 	g.pb.Blit(g.scr, 0, 0)
 }

@@ -19,11 +19,13 @@ func main() {
 		*seed = time.Now().UnixNano()
 	}
 
-	// Ask the terminal to grow to 256x64 cells (xterm window-resize escape;
-	// honored by Windows Terminal and most modern emulators, ignored
-	// harmlessly elsewhere). Sent before tcell takes over the screen.
-	fmt.Print("\x1b[8;64;256t")
-	time.Sleep(150 * time.Millisecond) // give the emulator a beat to apply it
+	// Deliberately send no terminal-resize escapes. Windows Terminal accepts
+	// a CSI 8 request for a grid wider than the monitor, silently clips the
+	// right edge, and keeps that oversized grid stuck to the tab until the
+	// window is resized by hand - which made everything (title screen,
+	// missiles, crosshair) render off-center while looking fine to the
+	// program. The game adapts live to whatever size the window really is;
+	// maximize the terminal for the biggest view.
 
 	scr, err := render.New()
 	if err != nil {

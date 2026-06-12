@@ -175,6 +175,17 @@ func (g *Game) handleKey(e *tcell.EventKey) bool {
 	if ch >= 'A' && ch <= 'Z' {
 		ch += 'a' - 'A'
 	}
+	// Arrow keys mirror WASD in every mode.
+	switch e.Key() {
+	case tcell.KeyUp:
+		ch = 'w'
+	case tcell.KeyDown:
+		ch = 's'
+	case tcell.KeyLeft:
+		ch = 'a'
+	case tcell.KeyRight:
+		ch = 'd'
+	}
 	switch g.mode {
 	case ModeTitle:
 		if e.Key() == tcell.KeyEnter || ch == ' ' {

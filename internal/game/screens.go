@@ -115,7 +115,7 @@ func (g *Game) drawTitle(w, h int) {
 
 	// Help box.
 	help := []string{
-		"WASD ......... move (overworld) / walk and turn (dungeon)",
+		"WASD/arrows .. move (overworld) / walk and turn (dungeon)",
 		"Q / E ........ strafe left / right (dungeon)",
 		"SPACE ........ fire a magic missile (1-10 damage)",
 		"Orcs claw up close; skeleton arrows hit hard from afar -",

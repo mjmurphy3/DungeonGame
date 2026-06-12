@@ -34,10 +34,15 @@ go run .
 
 Optional: `go run . -seed 12345` for a reproducible world.
 
-On startup the game asks the terminal to resize to **256×64** cells (works in
-Windows Terminal and most modern emulators). For the best picture, set your
-terminal profile to a small fixed-width font — e.g. Cascadia Mono at 8–10 pt —
-so the 256-column window fits your screen.
+The game adapts live to your terminal's size — **maximize the window for the
+best view**. For the biggest, sharpest picture, set your terminal profile to
+a small fixed-width font (e.g. Cascadia Mono at 8–10 pt): more columns means
+more raycaster resolution.
+
+> Upgrading from an older version? Earlier builds asked Windows Terminal for
+> a fixed 256-column grid, which can stay stuck to the tab and render the
+> game off-center. Resize the window once (or open a fresh tab) and it's
+> cured for good.
 
 ## Controls
 
@@ -46,6 +51,7 @@ so the 256-column window fits your screen.
 | ENTER | start (title screen)  |                         |
 | W / S | walk north / south    | walk forward / back     |
 | A / D | walk west / east      | turn left / right       |
+| Arrows| same as WASD          | same as WASD            |
 | Q / E |                       | strafe left / right     |
 | SPACE | (fizzles)             | fire magic missile      |
 | R     | restart after death/victory | restart after death/victory |
