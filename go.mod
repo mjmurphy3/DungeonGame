@@ -1,4 +1,4 @@
-module dungeongame
+module github.com/mjmurphy3/DungeonGame
 
 go 1.26.1
 

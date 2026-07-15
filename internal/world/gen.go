@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand"
 
-	"dungeongame/internal/util"
+	"github.com/mjmurphy3/DungeonGame/internal/util"
 )
 
 // Size is the overworld edge length in tiles.

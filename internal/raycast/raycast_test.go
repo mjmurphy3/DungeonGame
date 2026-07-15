@@ -3,8 +3,8 @@ package raycast
 import (
 	"testing"
 
-	"dungeongame/internal/dungeon"
-	"dungeongame/internal/render"
+	"github.com/mjmurphy3/DungeonGame/internal/dungeon"
+	"github.com/mjmurphy3/DungeonGame/internal/render"
 )
 
 func frameSetup() (*Renderer, *render.PixelBuf, *dungeon.Dungeon, func(int, int) WallKind, []Sprite) {

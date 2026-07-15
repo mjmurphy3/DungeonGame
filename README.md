@@ -26,7 +26,19 @@ It does not always end well:
 
 ![You died](screen3.png)
 
-## Running
+## Installing
+
+With [Go](https://go.dev/dl/) installed (macOS, Linux, or Windows):
+
+```
+go install github.com/mjmurphy3/DungeonGame@latest
+```
+
+That drops a `DungeonGame` binary into `$HOME/go/bin` (add it to your PATH if
+it isn't already — on macOS: `export PATH="$HOME/go/bin:$PATH"`). Then just
+run `DungeonGame` from anywhere.
+
+## Running from source
 
 ```
 go run .

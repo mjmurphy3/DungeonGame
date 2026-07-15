@@ -3,7 +3,7 @@ package game
 import (
 	"testing"
 
-	"dungeongame/internal/dungeon"
+	"github.com/mjmurphy3/DungeonGame/internal/dungeon"
 )
 
 // newHeadless builds a game without a terminal; update() never touches the

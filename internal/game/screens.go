@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"dungeongame/internal/render"
+	"github.com/mjmurphy3/DungeonGame/internal/render"
 )
 
 // bannerFont is a 5-row block font for the title and victory banners.

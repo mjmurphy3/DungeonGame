@@ -6,9 +6,9 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"dungeongame/internal/dungeon"
-	"dungeongame/internal/raycast"
-	"dungeongame/internal/render"
+	"github.com/mjmurphy3/DungeonGame/internal/dungeon"
+	"github.com/mjmurphy3/DungeonGame/internal/raycast"
+	"github.com/mjmurphy3/DungeonGame/internal/render"
 )
 
 const (

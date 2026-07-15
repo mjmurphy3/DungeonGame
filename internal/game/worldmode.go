@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"dungeongame/internal/world"
+	"github.com/mjmurphy3/DungeonGame/internal/world"
 )
 
 // worldKey handles one keypress in overworld mode (one tile per press;

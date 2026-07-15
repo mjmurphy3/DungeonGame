@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"dungeongame/internal/render"
+	"github.com/mjmurphy3/DungeonGame/internal/render"
 )
 
 // SpriteKind selects which procedural billboard to draw.

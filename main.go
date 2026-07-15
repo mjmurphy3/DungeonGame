@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"dungeongame/internal/game"
-	"dungeongame/internal/render"
+	"github.com/mjmurphy3/DungeonGame/internal/game"
+	"github.com/mjmurphy3/DungeonGame/internal/render"
 )
 
 func main() {
